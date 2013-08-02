@@ -26,7 +26,7 @@ data Quant a = Quant { value :: a, unit :: QuantUnit } | Nothing deriving (Eq, R
 
 -- Dimensionless units
 unity :: QuantUnit
-unity = replicate 7 (1, 0)
+unity = replicate 7 (0, 0)
 
 -- SI units
 kilogram :: QuantUnit
