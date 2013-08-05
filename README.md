@@ -73,6 +73,8 @@ It works on derived units too!
 
 Prefix handling is partially implemented via the `shiftPrefix` function. This function allows you to move the prefix of a unit a specified amount. At present, it works only on simple (one-dimensional) units; complex units made of more than one fundamental are not supported. Units raised to powers are supported in this context---for example, shifting 1.0 m<sup>2</sup> to cm<sup>2</sup> results in 10000.0 cm<sup>2</sup>.
 
+The `pureQuant` function takes a numeric value and returns a minimal Quant with dimensionless units. I'm beginning to think about implementing Quant as an applicative functor or monad, and this function plays the role of `pure` or `return`.
+
 # To Do
 *Prefix handling:* prefix handling is partially implemented for existing Quants (see above), but reading a measurement from a string will still only work properly when the fundamental units with no prefixes are used (note that "kg" works fine, since the kilogram is the fundamental unit of mass).
 
