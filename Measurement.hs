@@ -30,7 +30,7 @@ unity = replicate 7 (0, 0)
 
 -- SI units
 kilogram :: QuantUnit
-kilogram = [(3,1), (0, 0), (0, 0), (0, 0), (0, 0), (0, 0), (0, 0)]
+kilogram = [(3, 1), (0, 0), (0, 0), (0, 0), (0, 0), (0, 0), (0, 0)]
 meter :: QuantUnit
 meter = [(0, 0), (0,1), (0, 0), (0, 0), (0, 0), (0, 0), (0, 0)]
 second :: QuantUnit
