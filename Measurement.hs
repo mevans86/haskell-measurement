@@ -15,6 +15,7 @@ module Measurement
     times,
     dividedBy,
     readFromString,
+    pureQuant,
     shiftPrefix,
     showFundamental,
     showPretty,
@@ -138,6 +139,10 @@ prefix (pre, _)
     | pre == -21 = "z"
     | pre == -24 = "y"
     | otherwise = ""
+
+-- |Takes a number and returns a minimal Quant with dimensionless units.
+pureQuant :: (Num a) => a -> Quant a
+pureQuant val = Quant { value = val, unit = unity }
 
 -- |Takes a String containing value and unit information and returns a Quant a.
 -- |Unit prefixes are not supported yet (except for "kg").
