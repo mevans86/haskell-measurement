@@ -51,7 +51,7 @@ Basic arithmetic is implemented as the `plus`, `minus`, `times`, and `dividedBy`
 
 haskell-measurement also includes a couple of functions for working with units; these allow one to define complex units directly during the creation of a measurement. `unitTimes` and `unitOver` are fairly self-explanatory: they multiply and divide two units, respectively.
 
-Quant is derived instance of Show, but I have also provided a `showPretty` function that outputs a measurement with units in human-readable form. `showPretty` outputs derived units where applicable (derived units raised to powers are not supported, however). `showFundamental` forces a string containing only the seven fundamental units along with the value.
+Quant is a derived instance of Show, but I have also provided a `showPretty` function that outputs a measurement with units in human-readable form. `showPretty` outputs derived units where applicable (derived units raised to powers are not supported, however). `showFundamental` forces a string containing only the seven fundamental units along with the value.
 
 The `readFromString` function takes a single string parameter and returns a Quant. The string has a few formatting requirements: the value of the measurement must come first, followed by a space-separated list of multiplied units. Powers of units are supported, so the following works just fine.
 
