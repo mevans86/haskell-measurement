@@ -49,19 +49,7 @@ At present, haskell-measurement supports basic arithmetic on measurements. Using
 	
 Basic arithmetic is implemented as the `plus`, `minus`, `times`, and `dividedBy` functions.
 
-haskell-measurement also includes a couple of functions for working with units; these allow one to define complex units directly during the creation of a measurement. `unitTimes` and `unitOver` are fairly self-explanatory: they multiply and divide two units, respectively.
-
-Quant is a derived instance of Show, but I have also provided a `showPretty` function that outputs a measurement with units in human-readable form. `showPretty` outputs derived units where applicable (derived units raised to powers are not supported, however). `showFundamental` forces a string containing only the seven fundamental units along with the value.
-
-The `readFromString` function takes a single string parameter and returns a Quant. The string has a few formatting requirements: the value of the measurement must come first, followed by a space-separated list of multiplied units. Powers of units are supported, so the following works just fine.
-
-	ghci> let force = readFromString "12.23 m kg s^-2"
-	ghci> force
-	12.23 kg m s^-2
-
-Using scientific notation here is supported; just make sure to write values as, for example, "12.23e-3."
-
-The `unitToThePowerOf` function raises a unit to a power without need for an arbitrary computation. The idea is to allow the creation of complex units without unnecessary computations. Now you can use this...
+haskell-measurement also includes a couple of functions for working with units; these allow one to define complex units directly during the creation of a measurement. `unitTimes` and `unitOver` are fairly self-explanatory: they multiply and divide two units, respectively. `unitToThePowerOf` raises a unit to a power without need for an arbitrary computation. The idea is to allow the creation of complex units without unnecessary computations. Now you can use this...
 
 	ghci> Quant { value = 5.0, unit = meter `unitToThePowerOf` 2 }
 	
@@ -71,11 +59,25 @@ Instead of having to do this...
 
 It works on derived units too!
 
-Prefix handling is partially implemented via the `shiftPrefix` function. This function allows you to move the prefix of a unit a specified amount. At present, it works only on simple (one-dimensional) units; complex units made of more than one fundamental are not supported. Units raised to powers are supported in this context---for example, shifting 1.0 m<sup>2</sup> to cm<sup>2</sup> results in 10000.0 cm<sup>2</sup>.
+Quant is a derived instance of Show, but I have also provided a `showPretty` function that outputs a measurement with units in human-readable form. `showPretty` outputs derived units where applicable with appropriate prefixes (derived units raised to powers are not supported, however). The rule for prefixes on derived units is: if prefixed fundamental units were used to create the derived quantity, these fundamental prefixes are "rolled up" to create a net prefix for the derived unit. You can also display a unit in a more human-friendly way by using `shiftPrefix` wisely. For example,
+
+	ghci> let freq = fromStringToQuant "1000000 s^-1"
+	ghci> showPretty $ shiftPrefix 6 freq
+	"1.0 MHz"
+
+The `fromStringToQuant` function takes a single string parameter and returns a Quant. The string has a few formatting requirements: the value of the measurement must come first, followed by a space-separated list of multiplied units. Powers of units are supported, so the following works just fine.
+
+	ghci> let force = fromStringToQuant "12.23 m kg s^-2"
+	ghci> showPretty force
+	"12.23 N"
+
+Using scientific notation here is supported; just make sure to write values as, for example, "12.23e-3."
+
+Prefix handling is partially implemented via the `prefix`, `prefixString`, `shiftPrefix`, and `normalizePrefix` functions. I've realized that the issue of prefixes is somewhat complicated, because km<sup>2</sup> really means (km)<sup>2</sup>, while prefixes attached to units without exponents are simply a proxy for "times ten to the *n*th power." The former is hard to implement; the latter is easy. So, the latter is done for both base and derived units (you still can't read prefixes using `fromStringToQuant`, though).
 
 The `pureQuant` function takes a numeric value and returns a minimal Quant with dimensionless units. I'm beginning to think about implementing Quant as an applicative functor or monad, and this function plays the role of `pure` or `return`.
 
 # To Do
 *Prefix handling:* prefix handling is partially implemented for existing Quants (see above), but reading a measurement from a string will still only work properly when the fundamental units with no prefixes are used (note that "kg" works fine, since the kilogram is the fundamental unit of mass).
 
-*Showing derived units*: the `showPretty` function partially addresses this issue, but powers of derived units remain unsupported.
+*Showing derived units*: the `showPretty` function partially addresses this issue, but powers of derived units remain unsupported (and probably will for the forseeable future).

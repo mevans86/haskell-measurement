@@ -14,14 +14,16 @@ module Measurement
     minus,
     times,
     dividedBy,
-    readFromString,
+    fromStringToQuant,
     pureQuant,
+    prefix,
+    prefixString,
     shiftPrefix,
     showFundamental,
     showPretty,
+    unitOver,
     unitTimes,
-    unitToThePowerOf,
-    unitOver) where
+    unitToThePowerOf) where
 
 -- |Type synonym for [(Integer, Integer)], a list of [(prefix, power)] tuples for the seven fundamental SI units.
 type QuantUnit = [(Integer, Integer)]
@@ -61,6 +63,9 @@ candela = [(0, 0), (0, 0), (0, 0), (0, 0), (0, 0), (0, 0), (0,1)]
 
 -- Derived units
 
+-- |A helper unit of mass.
+gram :: QuantUnit
+gram = [(0,1), (0, 0), (0, 0), (0, 0), (0, 0), (0, 0), (0, 0)]
 -- |The SI derived unit of electrical charge. 1 C = 1 A s
 coulomb :: QuantUnit
 coulomb = zipWith (\(pre1, pow1) (pre2, pow2) -> (pre1 + pre2, pow1 + pow2)) ampere second
@@ -103,21 +108,31 @@ minus q1 q2
     | unit q1 == unit q2 = Quant { value = value q1 - value q2, unit = unit q1 }
     | otherwise = Measurement.Nothing
 
--- |Takes two Quant a's and returns the Quant a corresponding to their product.
-times :: (Num a) => Quant a -> Quant a -> Quant a
-times q1 q2 = Quant { value = value q1 * value q2, unit = zipWith (\(pre1, pow1) (pre2, pow2) -> (pre1 + pre2, pow1 + pow2)) (unit q1) (unit q2) }
+-- |Takes two Quant a's and returns the prefix-free Quant a corresponding to their product.
+times :: (Num a, Fractional a) => Quant a -> Quant a -> Quant a
+times q1 q2 = normalizePrefix Quant { value = value normQ1 * value normQ2, unit = zipWith (\(pre1, pow1) (pre2, pow2) -> (pre1 + pre2, pow1 + pow2)) (unit normQ1) (unit normQ2) }
+    where normQ1 = normalizePrefix q1
+          normQ2 = normalizePrefix q2
 
 -- |Takes two Quant a's and returns the Quant a corresponding to the first divided by the second.
 dividedBy :: (Eq a, Fractional a, Num a) => Quant a -> Quant a -> Quant a
 dividedBy q1 q2
     | value q2 == 0 = Measurement.Nothing
-    | otherwise = Quant { value = value q1 / value q2, unit = zipWith (\(pre1, pow1) (pre2, pow2) -> (pre1 - pre2, pow1 - pow2)) (unit q1) (unit q2) }
+    | otherwise = normalizePrefix Quant { value = value q1 / value q2, unit = zipWith (\(pre1, pow1) (pre2, pow2) -> (pre1 - pre2, pow1 - pow2)) (unit q1) (unit q2) }
 
 -- Utility Functions
 
+-- |Takes a String containing value and unit information and returns a Quant a. Unit prefixes are not supported yet (except for "kg").
+fromStringToQuant :: (Fractional a, Num a, Read a) => String -> Quant a
+fromStringToQuant str
+    | length tok >= 2 = Quant { value = val, unit = foldl (zipWith (\(pre1, pow1) (pre2, pow2) -> (pre1 + pre2, pow1 + pow2))) unity (map unitVectorFromString tok) } 
+    | otherwise = Measurement.Nothing
+    where tok = words str
+          val = read (head tok)
+
 -- |Takes a (prefix, power) tuple and returns the appropriate prefix String.
-prefix :: (Num a, Eq a) => (a, b) -> String
-prefix (pre, _)
+prefixString :: Integer -> String
+prefixString pre
     | pre == 24 = "Y"
     | pre == 21 = "Z"
     | pre == 18 = "E"
@@ -140,74 +155,76 @@ prefix (pre, _)
     | pre == -24 = "y"
     | otherwise = ""
 
+prefix :: Quant a -> Integer
+prefix q = fst (head (unit q))
+
 -- |Takes a number and returns a minimal Quant with dimensionless units.
 pureQuant :: (Num a) => a -> Quant a
 pureQuant val = Quant { value = val, unit = unity }
 
--- |Takes a String containing value and unit information and returns a Quant a.
--- |Unit prefixes are not supported yet (except for "kg").
-readFromString :: (Fractional a, Num a, Read a) => String -> Quant a
-readFromString str
-    | length tok >= 2 = Quant { value = val, unit = foldl (zipWith (\(pre1, pow1) (pre2, pow2) -> (pre1 + pre2, pow1 + pow2))) unity (map unitVectorFromString tok) } 
-    | otherwise = Measurement.Nothing
-    where tok = words str
-          val = read (head tok)
+-- |Takes a Quant and normalizes its prefix values by "rolling" them up into fst (head unit q). Only one prefix value is needed per Quant, really.
+normalizePrefix :: (Num a, Fractional a) => Quant a -> Quant a
+normalizePrefix q = Quant { value = value q * 10 ^ sum (map fst unitList), unit = updatedUnit }
+    where unitList = unit q
+          updatedUnit = zip (repeat 0) $ map snd unitList
 
--- |Takes an integer (n) and a Quant a, and returns a Quant a in which the prefix of the unit has been shifted n decimal places.
--- |If a shift to an unknown prefix is attempted, Measurement.Nothing is returned.
+-- |Takes an integer (n) and a Quant a, and returns a Quant a in which the prefix of the unit has been shifted n decimal places. If a shift to an unknown prefix is attempted, Measurement.Nothing is returned. TO DO: deal with shifts of units to powers. Doesn't really work right now.
 shiftPrefix :: (Num a, Fractional a) => Integer -> Quant a -> Quant a
+shiftPrefix 0 q = q
 shiftPrefix shift q
-    | length (filter (\(_, pow) -> (pow > 0)) (unit q)) /= 1 = Measurement.Nothing
     | ((finalPrefix `mod` 3) /= 0) && (abs finalPrefix > 3) = Measurement.Nothing
-    | otherwise = Quant { value = (value q / 10^^shift)^^(sum . map snd $ unit q), unit = map (\(pre, pow) -> (pre + shift, pow)) (unit q) }
-        where finalPrefix = head [ pre | (pre, pow) <- unit q, pow > 0 ] + shift
+    | otherwise = Quant { value = value q / 10 ^^ shift, unit = (finalPrefix, snd (head (unit q))) : tail (unit q) }
+        where finalPrefix = prefix q + shift
 
 -- |Takes a Quant a and returns a String representation of the measurement with fundamental SI units only.
 showFundamental :: (Eq a, Show a) => Quant a -> String
-showFundamental q = (show . value $ q) ++ kg ++ m ++ mol ++ amp ++ cd ++ k ++ s
-            where kg
+showFundamental q = (show . value $ q) ++ " " ++ pf ++ unwords (filter (/= "") [kg, m, mol, amp, cd, k, s])
+            where pf = prefixString (prefix q)
+                  kg
                     | snd (head (unit q)) == 0 = ""
-                    | snd (head (unit q)) == 1 = " " ++ prefix (head (unit q)) ++ "g"
-                    | otherwise = " " ++ prefix (head (unit q)) ++ "g^" ++ show (snd (head (unit q)))
+                    | snd (head (unit q)) == 1 = "g"
+                    | otherwise = "g^" ++ show (snd (head (unit q)))
                   m
                     | snd (unit q !! 1) == 0 = ""
-                    | snd (unit q !! 1) == 1 = " " ++ prefix (unit q !! 1) ++ "m"
-                    | otherwise = " " ++ prefix (unit q !! 1) ++ "m^" ++ show (snd (unit q !! 1))
+                    | snd (unit q !! 1) == 1 = "m"
+                    | otherwise = "m^" ++ show (snd (unit q !! 1))
                   s
                     | snd (unit q !! 2) == 0 = ""
-                    | snd (unit q !! 2) == 1 = " " ++ prefix (unit q !! 2) ++ "s"
-                    | otherwise = " " ++ prefix (unit q !! 2) ++ "s^" ++ show (snd (unit q !! 2))
+                    | snd (unit q !! 2) == 1 = "s"
+                    | otherwise = "s^" ++ show (snd (unit q !! 2))
                   k
                     | snd (unit q !! 3) == 0 = ""
-                    | snd (unit q !! 3) == 1 = " " ++ prefix (unit q !! 3) ++ "K"
-                    | otherwise = " " ++ prefix (unit q !! 3) ++ "K^" ++ show (snd (unit q !! 3))
+                    | snd (unit q !! 3) == 1 = "K"
+                    | otherwise = "K^" ++ show (snd (unit q !! 3))
                   mol
                     | snd (unit q !! 4) == 0 = ""
-                    | snd (unit q !! 4) == 1 = " " ++ prefix (unit q !! 4) ++ "mol"
-                    | otherwise = " " ++ prefix (unit q !! 4) ++ "mol^" ++ show (snd (unit q !! 4))
+                    | snd (unit q !! 4) == 1 = "mol"
+                    | otherwise = "mol^" ++ show (snd (unit q !! 4))
                   amp
                     | snd (unit q !! 5) == 0 = ""
-                    | snd (unit q !! 5) == 1 = " " ++ prefix (unit q !! 5) ++ "A"
-                    | otherwise = " " ++ prefix (unit q !! 5) ++ "A^" ++ show (snd (unit q !! 5))
+                    | snd (unit q !! 5) == 1 = "A"
+                    | otherwise = "A^" ++ show (snd (unit q !! 5))
                   cd
                     | snd (unit q !! 6) == 0 = ""
-                    | snd (unit q !! 6) == 1 = " " ++ prefix (unit q !! 6) ++ "cd"
-                    | otherwise = " " ++ prefix (unit q !! 6) ++ "cd^" ++ show (snd (unit q !! 6))
+                    | snd (unit q !! 6) == 1 = "cd"
+                    | otherwise = "cd^" ++ show (snd (unit q !! 6))
 
 -- |Takes a Quant a and returns a String representation of the measurement, using derived units where applicable.
-showPretty :: (Eq a, Show a) => Quant a -> String
+showPretty :: (Eq a, Show a, Num a, Fractional a) => Quant a -> String
 showPretty q
         | q == Measurement.Nothing = "Nothing"
-        | unit q == coulomb = (show . value $ q) ++ " C"
-        | unit q == farad = (show . value $ q) ++ " F"
-        | unit q == hertz = (show . value $ q) ++ " Hz"
-        | unit q == joule = (show . value $ q) ++ " J"
-        | unit q == newton = (show . value $ q) ++ " N"
-        | unit q == ohm = (show . value $ q) ++ " ohm"
-        | unit q == pascal = (show . value $ q) ++ " Pa"
-        | unit q == volt = (show . value $ q) ++ " V"
-        | unit q == watt = (show . value $ q) ++ " W"
+        | baseUnit == coulomb = (show . value $ q) ++ " " ++ prefixString (prefix q) ++ "C"
+        | baseUnit == farad = (show . value $ q) ++ " " ++ prefixString (prefix q) ++ "F"
+        | baseUnit == hertz = (show . value $ q) ++ " " ++ prefixString (prefix q) ++ "Hz"
+        | baseUnit == joule = (show . value $ q) ++ " " ++ prefixString (prefix q) ++ "J"
+        | kiloUnit == newton = (show . value $ q) ++ " " ++ prefixString (prefix q - 3) ++ "N"
+        | baseUnit == ohm = (show . value $ q) ++ " " ++ prefixString (prefix q) ++ "ohm"
+        | baseUnit == pascal = (show . value $ q) ++ " " ++ prefixString (prefix q) ++ "Pa"
+        | baseUnit == volt = (show . value $ q) ++ " " ++ prefixString (prefix q) ++ "V"
+        | baseUnit == watt = (show . value $ q) ++ " " ++ prefixString (prefix q) ++ "W"
         | otherwise = showFundamental q
+        where baseUnit = unit (shiftPrefix (-1 * prefix q) q)
+              kiloUnit = unit (shiftPrefix (-1 * prefix q + 3) q)
 
 -- |Takes a (Char -> Bool) function and a String, and returns a list of Strings split when the (Char -> Bool) function
 -- |evaluates to True.
@@ -232,7 +249,8 @@ unitToThePowerOf q1 expt = map (\(pre, pow) -> (pre, pow * expt)) q1
 -- |Takes a string expressing a unit raised to a power and returns the corresponding QuantUnit.
 -- |Unit prefixes are not supported yet (except for "kg").
 unitVectorFromString :: String -> QuantUnit
-unitVectorFromString str = case head unitExp of "kg" -> fmap (\(pre, pow) -> (pre, pow * expt)) kilogram
+unitVectorFromString str = case head unitExp of "g" -> fmap (\(pre, pow) -> (pre, pow * expt)) gram
+                                                "kg" -> fmap (\(pre, pow) -> (pre, pow * expt)) kilogram
                                                 "m" -> fmap (\(pre, pow) -> (pre, pow * expt)) meter
                                                 "s" -> fmap (\(pre, pow) -> (pre, pow * expt)) second
                                                 "K" -> fmap (\(pre, pow) -> (pre, pow * expt)) kelvin
